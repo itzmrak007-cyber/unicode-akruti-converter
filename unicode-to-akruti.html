@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Unicode to Akruti Sarala converter for Odia text">
+<title>Unicode to Akruti Sarala Converter</title>
+<style>
+:root{--bg:#f0f2f5;--card:#fff;--text:#333;--muted:#6b7280;--border:#d9dde3;--primary:#4AAAD1;--primary-d:#3897be;--title:#316E89;--ok:#5cb85c;--ok-d:#4cae4c;--warn:#b45309;--warn-bg:#fef3c7}
+@media(prefers-color-scheme:dark){:root{--bg:#14181d;--card:#1d232b;--text:#e5e7eb;--muted:#9ca3af;--border:#38414d;--title:#7cc4e0;--warn:#fcd34d;--warn-bg:#3b2f0b}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+header{text-align:center;padding:20px 0;margin-bottom:24px;border-bottom:1px solid var(--border)}
+h1{color:var(--title);font-size:2.2rem;font-weight:600}
+.subtitle{color:var(--muted)}
+.card{background:var(--card);border-radius:10px;box-shadow:0 4px 6px rgba(0,0,0,.1);padding:24px}
+label.field{display:block;font-weight:600;margin:6px 0}
+.hint{color:var(--muted);font-size:.9rem;font-weight:400}
+textarea{width:100%;padding:14px;border:1px solid var(--border);border-radius:6px;font-size:17px;resize:vertical;background:var(--bg);color:var(--text);font-family:inherit}
+textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(74,170,209,.25)}
+#akruti_text{font-family:'AkrutiUser','Akruti Ori Saraala','AkrutiOriSarala1',monospace}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+.row.center{justify-content:center}
+button,.btn{min-width:130px;padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-weight:700;font-size:.95rem;cursor:pointer;transition:background .2s,transform .15s;text-align:center;display:inline-block}
+button:hover,.btn:hover{background:var(--primary-d);transform:translateY(-1px)}
+button.secondary,.btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+button.secondary:hover,.btn.secondary:hover{background:var(--bg)}
+button.ok{background:var(--ok)}button.ok:hover{background:var(--ok-d)}
+input[type=file]{display:none}
+.toggle{display:flex;gap:6px;align-items:center;font-size:.95rem;cursor:pointer}
+#status{font-size:.9rem;color:var(--muted);min-height:1.4em}
+#warn{display:none;background:var(--warn-bg);color:var(--warn);padding:10px 14px;border-radius:6px;margin:10px 0;font-size:.92rem}
+footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
+button:focus-visible,.btn:focus-visible{outline:2px solid var(--title);outline-offset:2px}
+@media(max-width:768px){.container{padding:12px}h1{font-size:1.7rem}.card{padding:14px}}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Unicode to Akruti Sarala Converter</h1>
+    <p class="subtitle">Paste Unicode Odia text below</p>
+  </header>
+
+  <main class="card">
+    <label class="field" for="unicode_text">Unicode Odia text</label>
+    <textarea id="unicode_text" rows="9" placeholder="Paste Unicode Odia text here..." spellcheck="false"></textarea>
+
+    <div class="row center">
+      <button id="convert_button" type="button">CONVERT</button>
+      <label class="toggle"><input type="checkbox" id="live" checked> Live conversion</label>
+      <label class="btn secondary" for="file_in">Open .txt</label>
+      <input type="file" id="file_in" accept=".txt,text/plain">
+      <button id="clear_button" type="button" class="secondary">Clear</button>
+    </div>
+
+    <label class="field" for="akruti_text">Akruti Sarala text
+      <span class="hint">&nbsp;— copy into Akruti-compatible applications</span></label>
+    <textarea id="akruti_text" rows="12" placeholder="Converted text will appear here..." spellcheck="false"></textarea>
+    <div id="warn" role="alert"></div>
+
+    <div class="row">
+      <button id="copy_button" type="button" class="ok">COPY TEXT</button>
+      <button id="download_button" type="button" class="secondary">Download .txt</button>
+      <label class="btn secondary" for="font_in" title="Preview output with your Akruti font file">Load Akruti font (.ttf/.otf)</label>
+      <input type="file" id="font_in" accept=".ttf,.otf,.woff,.woff2">
+    </div>
+    <div id="status" aria-live="polite"></div>
+  </main>
+
+  <footer>
+    <p>Inspired by Akruti to Unicode converter. Designed for Odia text conversion.</p>
+    <p>Under CC-BY-SA 3.0 &middot; Shortcut: Ctrl+Enter to convert</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Mapping tables (Unicode Odia -> Akruti Sarala) ---------- */
+const H = "\u0B4D";          // halanta (virama)
+const ZWNJ = "\u200C", ZWJ = "\u200D";
+
+const VOWELS = {
+  "ଅ":"@","ଆ":"@û","ଇ":"A","ଈ":"B","ଉ":"C","ଊ":"D","ଋ":"E","ୠ":"F",
+  "ଏ":"G","ଐ":"H","ଓ":"I","ଔ":"J","ଌ":"&","ଽ":"$"
+};
+
+const CONS = {
+  "କ":"K","ଖ":"L","ଗ":"M","ଘ":"N","ଙ":"O",
+  "ଚ":"P","ଛ":"Q","ଜ":"R","ଝ":"S","ଞ":"T",
+  "ଟ":"U","ଠ":"V","ଡ":"W","ଢ":"X","ଣ":"Y",
+  "ତ":"Z","ଥ":"[","ଦ":"\\","ଧ":"]","ନ":"^",
+  "ପ":"_","ଫ":"`","ବ":"a","ଭ":"b","ମ":"c",
+  "ୟ":"d","ର":"e","ଲ":"f","ଶ":"g","ଷ":"h","ସ":"i","ହ":"j","ଳ":"k",
+  "ଯ":"~","ୱ":"Iß",
+  "\u0B5C":"Wÿ","\u0B5D":"Xÿ"      // ଡ଼ ଢ଼ as single code points (matches normalizeInput)
+};
+
+/* Vowel signs: pre = glyph placed before the consonant, post = glyph placed after it */
+const MATRAS = {
+  "ା":{post:"û"}, "ି":{post:"ò"}, "ୀ":{post:"ú"}, "ୁ":{post:"ê"},
+  "ୂ":{post:"ì"}, "ୃ":{post:"é"},
+  "େ":{pre:"ù"}, "ୈ":{pre:"ù",post:"÷"}, "ୋ":{pre:"ù",post:"û"}, "ୌ":{pre:"ù",post:"ø"}
+};
+
+const SIGNS = { "ଁ":"ñ", "ଂ":"õ", "ଃ":"ü" };
+
+const OTHERS = {
+  "୦":"0","୧":"1","୨":"2","୩":"3","୪":"4","୫":"5","୬":"6","୭":"7","୮":"8","୯":"9",
+  "୰":"#", "।":" û"
+};
+
+/* Reph (ର୍ before a consonant) -> single glyph placed after the syllable */
+const REPH = "ð";
+
+/* Subjoined (halanta + consonant) forms */
+const SUBJOINED = {
+  "କ":"Ñ","ଖ":"Ò","ଗ":"Ó","ଚ":"Ô","ଜ":"Õ","ଟ":"Ö","ଠ":"×","ଡ":"Ø","ଣ":"Ù",
+  "ଥ":"Ú","ଧ":"Û","ନ":"Ü","ପ":"Ý","ଫ":"Þ","ୱ":"ß","ବ":"ß","ମ":"£","ର":"â",
+  "ଲ":"ä","ଭ":"å","ଳ":"æ","ସ":"è","ୟ":"ý","ଯ":"ý"
+};
+
+/* Full conjunct glyphs, keyed by consonants joined with halanta */
+const CONJUNCT_LIST = [
+  "କ୍ଷ","l","ଜ୍ଞ","m","ଦ୍ଭ","n","କ୍ଟ","o","କ୍ଟ୍ର","p","କ୍ତ","q","କ୍ସ","r",
+  "ଗ୍ଦ","s","ଗ୍ଧ","t","ଙ୍କ","u","ଙ୍ଖ","v","ଙ୍ଗ","w","ଙ୍ଘ","x","ଚ୍ଚ","y","ଚ୍ଛ","z",
+  "ଦ୍ଵ","\\ß","ଜ୍ଜ","{","ଜ୍ଝ","|","କ୍ର","}","ଞ୍ଚ","\u0081",
+  "ଣ୍ଟ","\u008d","ଟ୍ଟ","…","ମ୍ପ","μ","ମ୍ଫ","¶","ଣ୍ଣ","‰","ଣ୍ଡ","Š","ଣ୍ଠ","Œ","ତ୍ମ","™",
+  "ତ୍ପ","š","ତ୍ସ","›","ତ୍ସ୍ନ","œ","ଦ୍ଦ","Ÿ","ଦ୍ଧ","¡","ଦ୍ଘ","¢","ଧ୍ୟ","¤",
+  "ନ୍ଦ","¦","ନ୍ଧ","§","ତ୍ତ","\u008f","ନ୍ତ୍ର","ª","ନ୍ତ","«","ଞ୍ଜ","¬","ଞ୍ଝ","ƒ",
+  "ପ୍ପ","®","ପ୍ତ","¯","ପ୍ସ","°","ବ୍ଦ","±","ବ୍ଧ","²","ମ୍ବ","´","ମ୍ଭ","¸","ମ୍ମ","¹",
+  "ଲ୍କ","º","ଲ୍ଗ","»","ଶ୍ଛ","¼","ଶ୍ଚ","½","ଷ୍ଣ","¾","ଷ୍ପ","¿","ଷ୍ଫ","À","ଷ୍ଟ","Á",
+  "ଷ୍ଠ","Â","ଷ୍କ","Ã","ସ୍କ","Ä","ସ୍ଖ","Å","ସ୍ପ","Æ","ସ୍ଫ","Ç","ସ୍ତ୍ର","È","ସ୍ତ","É",
+  "ସ୍ୱ","Ê","ଳ୍କ","Ë","ଳ୍ପ","Ì","ଳ୍ଫ","Í","ତ୍ଥ","Î","ଳ୍ଳ","Ï","କ୍ଷ୍ଣ","Ð","କ୍ଷ୍ମ","là",
+  "ଣ୍ଢ","‹"
+];
+const CONJUNCTS = {};
+for (let i = 0; i < CONJUNCT_LIST.length; i += 2) {
+  CONJUNCTS[CONJUNCT_LIST[i]] = CONJUNCT_LIST[i + 1];   // first definition wins; no duplicates
+}
+const MAX_CHAIN = Math.max(...Object.keys(CONJUNCTS).map(k => [...k].filter(c => c in CONS).length));
+
+/* i-kara variant used after these consonants (khi, thi, dhi) */
+const I_KARA_ALT = new Set(["ଖ", "ଥ", "ଧ"]);
+
+/* ---------- Conversion engine ---------- */
+const isCons = ch => ch !== undefined && Object.prototype.hasOwnProperty.call(CONS, ch);
+const isOdia = ch => /[\u0B00-\u0B7F]/.test(ch);
+
+/* Rewrite decomposed Odia sequences into the precomposed forms used in the tables */
+function normalizeInput(text) {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u0B21\u0B3C/g, "\u0B5C")          // ଡ + nukta -> ଡ଼
+    .replace(/\u0B22\u0B3C/g, "\u0B5D")          // ଢ + nukta -> ଢ଼
+    .replace(/\u0B47\u0B3E/g, "\u0B4B")          // e + aa  -> o
+    .replace(/\u0B47\u0B57/g, "\u0B4C")          // e + au-length -> au
+    .replace(/\u0B3C/g, "")                      // stray nukta
+    .replace(new RegExp(ZWJ, "g"), "");          // ZWJ has no meaning here (ZWNJ is handled)
+}
+
+/* Build the base glyph(s) of a consonant chain (C1 ୍ C2 ୍ C3 ...) */
+function chainGlyph(chain, reph) {
+  let out = "", k = 0, rephDone = !reph;
+  while (k < chain.length) {
+    if (!rephDone && out !== "") { out += REPH; rephDone = true; }   // reph sits right after the base glyph
+    let matched = false;
+    for (let len = Math.min(MAX_CHAIN, chain.length - k); len >= 2; len--) {
+      const key = chain.slice(k, k + len).join(H);
+      if (CONJUNCTS[key]) { out += CONJUNCTS[key]; k += len; matched = true; break; }
+    }
+    if (matched) continue;
+    const c = chain[k++];
+    if (out === "") out += CONS[c];
+    else out += SUBJOINED[c] || ("þ" + CONS[c]);
+  }
+  return rephDone ? out : out + REPH;
+}
+
+function convertText(input) {
+  const t = [...normalizeInput(input)];
+  const unmapped = new Set();
+  let out = "", i = 0;
+
+  while (i < t.length) {
+    const ch = t[i];
+
+    if (isCons(ch)) {
+      /* ---- syllable cluster ---- */
+      let reph = false;
+      if (ch === "ର" && t[i + 1] === H && isCons(t[i + 2])) { reph = true; i += 2; }
+
+      const chain = [t[i++]];
+      while (t[i] === H && isCons(t[i + 1])) { chain.push(t[i + 1]); i += 2; }
+
+      let tail = "";                                    // dangling halanta
+      if (t[i] === H) { i++; if (t[i] === ZWNJ) { i++; tail = "¨"; } else tail = "þ"; }
+
+      let pre = "", post = "";
+      while (MATRAS[t[i]]) {
+        const m = MATRAS[t[i]];
+        if (t[i] === "ି") {
+          if (t[i + 1] === "ଁ") { post += "ó"; i++; }                       // i-kara + chandrabindu
+          else post += (chain.length === 1 && I_KARA_ALT.has(chain[0])) ? "ô" : m.post;
+        } else {
+          pre += m.pre || "";
+          post += m.post || "";
+        }
+        i++;
+      }
+      out += pre + chainGlyph(chain, reph) + post + tail;
+      continue;
+    }
+
+    i++;
+    if (ch === ZWNJ) continue;
+    if (VOWELS[ch] !== undefined) out += VOWELS[ch];
+    else if (SIGNS[ch] !== undefined) out += SIGNS[ch];
+    else if (OTHERS[ch] !== undefined) out += OTHERS[ch];
+    else if (MATRAS[ch]) out += (MATRAS[ch].pre || "") + (MATRAS[ch].post || "");   // stray vowel sign
+    else if (ch === H) { out += "þ"; }
+    else {
+      if (isOdia(ch)) unmapped.add(ch);
+      out += ch;
+    }
+  }
+  return { text: out, unmapped: [...unmapped] };
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+const src = $("unicode_text"), dst = $("akruti_text"), statusEl = $("status"), warnEl = $("warn");
+let statusTimer;
+
+function say(msg) {
+  statusEl.textContent = msg;
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => (statusEl.textContent = ""), 3000);
+}
+
+function run(notify) {
+  const text = src.value;
+  if (!text.trim()) {
+    dst.value = ""; warnEl.style.display = "none";
+    if (notify) say("Please enter some Unicode Odia text to convert.");
+    return;
+  }
+  try {
+    const r = convertText(text);
+    dst.value = r.text;
+    if (r.unmapped.length) {
+      warnEl.textContent = "Characters with no Akruti mapping were left unchanged: " + r.unmapped.join(" ");
+      warnEl.style.display = "block";
+    } else warnEl.style.display = "none";
+    if (notify) say(`Converted ${[...text].length} characters.`);
+  } catch (e) {
+    console.error(e);
+    say("Conversion failed: " + e.message);
+  }
+}
+
+async function copyOutput() {
+  if (!dst.value) return say("Nothing to copy yet.");
+  try {
+    await navigator.clipboard.writeText(dst.value);
+  } catch {
+    dst.select();
+    document.execCommand("copy");   // fallback for older browsers / file:// pages
+  }
+  const b = $("copy_button");
+  b.textContent = "COPIED!";
+  setTimeout(() => (b.textContent = "COPY TEXT"), 1500);
+}
+
+function download() {
+  if (!dst.value) return say("Nothing to download yet.");
+  const url = URL.createObjectURL(new Blob([dst.value], { type: "text/plain;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: "akruti-output.txt" });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$("convert_button").addEventListener("click", () => run(true));
+$("copy_button").addEventListener("click", copyOutput);
+$("download_button").addEventListener("click", download);
+$("clear_button").addEventListener("click", () => { src.value = dst.value = ""; warnEl.style.display = "none"; src.focus(); });
+src.addEventListener("input", () => { if ($("live").checked) run(false); });
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(true); }
+});
+
+$("file_in").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  src.value = await f.text(); run(true); e.target.value = "";
+});
+
+$("font_in").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const face = new FontFace("AkrutiUser", await f.arrayBuffer());
+    document.fonts.add(await face.load());
+    say("Font loaded: output now previews with " + f.name);
+  } catch { say("Could not load that font file."); }
+  e.target.value = "";
+});
+
+src.focus();
+</script>
+</body>
+</html>
